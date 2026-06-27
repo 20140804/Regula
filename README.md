@@ -107,7 +107,6 @@ Distributed under the **MIT License**. See the [LICENSE](LICENSE) file for detai
 
 - Author: [20140804](https://github.com/20140804)  
 - Project URL: [https://github.com/20140804/Regula](https://github.com/20140804/Regula)
-- Official Email:Regula_Official@outlook.com
 Welcome to ask me questions about the software!!!
 
 ---
