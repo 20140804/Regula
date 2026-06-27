@@ -35,3 +35,33 @@ THEME = {
     "border_radius": "10px",
     "font_family": "Segoe UI, Microsoft YaHei, sans-serif"
 }
+# config.py (追加)
+
+# ===== Pro 版本功能开关 =====
+PRO_FEATURES = {
+    "ocr_enabled": True,        # OCR 功能（Pro 专属）
+    "max_rules_free": 3,         # 免费版最大规则数（留作以后用）
+    "batch_limit_free": 5,       # 免费版最大批量文件数（留作以后用）
+}
+# config.py (追加)
+from utils.license_manager import is_pro_activated
+
+# ===== Pro 状态 =====
+PRO_ACTIVATED = is_pro_activated()
+
+# 功能开关
+FEATURES = {
+    "ocr": PRO_ACTIVATED,      # OCR 图片识别
+    "batch": True,             # 批量扫描（免费版已有）
+    "heatmap": True,           # 热力图（免费版已有）
+    "custom_rules": True,      # 自定义规则（免费版已有）
+    "advanced_pdf": PRO_ACTIVATED,  # 高级 PDF 报告
+}
+# config.py (追加)
+# ===== 多语言支持 =====
+SUPPORTED_LANGUAGES = {
+    "zh": "中文",
+    "en": "英文",
+    "ja": "日文",
+    "ko": "韩文"
+}
