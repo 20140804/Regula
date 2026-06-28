@@ -2,6 +2,7 @@
 """
 主窗口 - 完整版
 支持：单文件/文件夹/图片拖拽、扫描、热力图、PDF导出、规则管理、Pro激活、规则模板库、设置
+PRO MAX 版额外支持：AI 智能语义理解、违规自动分类、智能修改建议
 """
 import sys
 import os
@@ -17,9 +18,11 @@ from utils.async_runner import ScanWorker, BatchScanWorker, OCRScanWorker
 from models.violation import Violation
 from exporters.pdf_exporter import export_to_pdf
 from ui.heatmap_widget import HeatmapWidget
-from config import THEME, PRO_ACTIVATED
+from config import THEME, PRO_ACTIVATED, PRO_MAX_ACTIVATED
 from utils.settings_manager import load_settings, load_language_pack
 from utils.logger import log_exception, log_info, log_error
+from core.ai_engine import is_ai_available
+from core.ai_suggester import AISuggester
 
 
 class MainWindow(QMainWindow):
@@ -37,6 +40,11 @@ class MainWindow(QMainWindow):
         self.current_batch_stats = {}
         self.is_batch_mode = False
         self.is_image_mode = False
+
+        # Pro Max 状态
+        self.is_pro_max = PRO_ACTIVATED and PRO_MAX_ACTIVATED
+        self.ai_available = is_ai_available()
+        self.ai_enhanced_violations = []
 
         self._setup_ui()
         self.setAcceptDrops(True)
@@ -61,6 +69,8 @@ class MainWindow(QMainWindow):
 
         # ===== Pro 状态栏 =====
         pro_layout = QHBoxLayout()
+
+        # Pro 状态
         self.pro_status_label = QLabel(
             self._tr("pro_activated") if PRO_ACTIVATED else self._tr("pro_free")
         )
@@ -68,6 +78,13 @@ class MainWindow(QMainWindow):
             f"color: {'#27ae60' if PRO_ACTIVATED else '#e67e22'}; font-weight: bold; font-size: 14px;"
         )
         pro_layout.addWidget(self.pro_status_label)
+
+        # Pro Max 状态（仅在 Pro 已激活时显示）
+        if self.is_pro_max:
+            self.promax_status_label = QLabel(" 👑 PRO MAX")
+            self.promax_status_label.setStyleSheet("color: #8e44ad; font-weight: bold; font-size: 14px;")
+            pro_layout.addWidget(self.promax_status_label)
+
         pro_layout.addStretch()
 
         if not PRO_ACTIVATED:
@@ -75,6 +92,11 @@ class MainWindow(QMainWindow):
             self.btn_upgrade.clicked.connect(self._on_upgrade)
             self.btn_upgrade.setStyleSheet("background-color: #e67e22; color: white; padding: 4px 16px; border-radius: 4px; font-weight: bold;")
             pro_layout.addWidget(self.btn_upgrade)
+        elif PRO_ACTIVATED and not PRO_MAX_ACTIVATED:
+            self.btn_promax_upgrade = QPushButton("👑 升级 Pro Max")
+            self.btn_promax_upgrade.clicked.connect(self._on_upgrade_promax)
+            self.btn_promax_upgrade.setStyleSheet("background-color: #8e44ad; color: white; padding: 4px 16px; border-radius: 4px; font-weight: bold;")
+            pro_layout.addWidget(self.btn_promax_upgrade)
 
         main_layout.addLayout(pro_layout)
 
@@ -146,12 +168,21 @@ class MainWindow(QMainWindow):
             QTabBar::tab { padding: 8px 16px; }
         """)
 
+        # 表格：动态列数（Pro Max 多一列 AI 分类）
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels([
-            self._tr("table_severity"), self._tr("table_line"), self._tr("table_keyword"),
-            self._tr("table_position"), self._tr("table_context"), self._tr("table_suggestion")
-        ])
+        if self.is_pro_max:
+            self.table.setColumnCount(7)
+            self.table.setHorizontalHeaderLabels([
+                self._tr("table_severity"), self._tr("table_line"), self._tr("table_keyword"),
+                self._tr("table_position"), self._tr("table_context"), self._tr("table_suggestion"),
+                "AI 分类"
+            ])
+        else:
+            self.table.setColumnCount(6)
+            self.table.setHorizontalHeaderLabels([
+                self._tr("table_severity"), self._tr("table_line"), self._tr("table_keyword"),
+                self._tr("table_position"), self._tr("table_context"), self._tr("table_suggestion")
+            ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -159,6 +190,8 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        if self.is_pro_max:
+            header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
         self.table.setAlternatingRowColors(True)
         self.tab_widget.addTab(self.table, self._tr("tab_details"))
 
@@ -300,6 +333,7 @@ class MainWindow(QMainWindow):
         self.heatmap_widget.update_data({})
         self.current_violations = []
         self.current_batch_stats = {}
+        self.ai_enhanced_violations = []
 
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
@@ -332,13 +366,26 @@ class MainWindow(QMainWindow):
     def _on_scan_finished(self, violations: list, file_path: str):
         self.progress_bar.setVisible(False)
         self.btn_scan.setEnabled(True)
-        self.current_violations = violations
-        self.btn_export.setEnabled(True)
 
+        # 如果是 Pro Max 且有违规，进行 AI 增强
+        if self.is_pro_max and violations and self.ai_available:
+            self.status_label.setText("🧠 AI 智能分析中...")
+            try:
+                self.ai_enhanced_violations = AISuggester.enhance_batch(violations)
+                self.current_violations = self.ai_enhanced_violations
+                log_info(f"AI 增强完成，处理了 {len(violations)} 条违规")
+            except Exception as e:
+                log_exception(e, "AI 增强失败")
+                self.current_violations = violations
+                self.ai_enhanced_violations = []
+        else:
+            self.current_violations = violations
+            self.ai_enhanced_violations = []
+
+        self.btn_export.setEnabled(True)
         self.status_label.setText(f"✅ {self._tr('status_complete')}: {os.path.basename(file_path)}")
-        self._populate_table(violations)
-        self._update_stats(violations, is_batch=False)
-        log_info(f"扫描完成: {file_path}, 违规数: {len(violations)}")
+        self._populate_table(self.current_violations)
+        self._update_stats(self.current_violations, is_batch=False)
 
         if not violations:
             QMessageBox.information(self, self._tr("success_scan_clean"), 
@@ -354,8 +401,19 @@ class MainWindow(QMainWindow):
             all_violations.extend(v_list)
         self.current_violations = all_violations
 
-        self._populate_table(all_violations)
-        self._update_stats(all_violations, is_batch=True, summary=summary)
+        # 如果是 Pro Max，对批量结果进行 AI 增强
+        if self.is_pro_max and all_violations and self.ai_available:
+            try:
+                self.ai_enhanced_violations = AISuggester.enhance_batch(all_violations)
+                self.current_violations = self.ai_enhanced_violations
+                log_info(f"AI 批量增强完成，处理了 {len(all_violations)} 条违规")
+            except Exception as e:
+                log_exception(e, "AI 批量增强失败")
+                self.current_violations = all_violations
+                self.ai_enhanced_violations = []
+
+        self._populate_table(self.current_violations)
+        self._update_stats(self.current_violations, is_batch=True, summary=summary)
 
         self.heatmap_widget.update_data(stats)
         self.tab_widget.setCurrentIndex(1)
@@ -392,7 +450,21 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 4, QTableWidgetItem(ctx))
             self.table.setItem(row, 5, QTableWidgetItem(v.suggestion))
 
-            for col in range(6):
+            # Pro Max 专属：AI 分类列
+            if self.is_pro_max and hasattr(v, 'category'):
+                category_text = v.category if v.category else "未分类"
+                category_item = QTableWidgetItem(category_text)
+                # 根据置信度着色
+                if hasattr(v, 'confidence') and v.confidence > 0.7:
+                    category_item.setForeground(Qt.GlobalColor.darkGreen)
+                elif hasattr(v, 'confidence') and v.confidence > 0.4:
+                    category_item.setForeground(Qt.GlobalColor.darkYellow)
+                else:
+                    category_item.setForeground(Qt.GlobalColor.darkGray)
+                self.table.setItem(row, 6, category_item)
+
+            # 颜色标记（原有逻辑）
+            for col in range(self.table.columnCount()):
                 item = self.table.item(row, col)
                 if item:
                     if v.severity == "致命":
@@ -431,6 +503,7 @@ class MainWindow(QMainWindow):
         self.heatmap_widget.update_data({})
         self.current_violations = []
         self.current_batch_stats = {}
+        self.ai_enhanced_violations = []
         self.stats_label.setText("共 0 项违规 | 0 个文件")
         self.status_label.setText("已清空结果")
         self.current_file_path = None
@@ -560,4 +633,27 @@ class MainWindow(QMainWindow):
                 )
         except Exception as e:
             log_exception(e, "Pro 激活")
+            QMessageBox.critical(self, "错误", f"激活失败：{str(e)}")
+
+    # ===== Pro Max 升级 =====
+    def _on_upgrade_promax(self):
+        try:
+            from ui.promax_activation_dialog import ProMaxActivationDialog
+            dialog = ProMaxActivationDialog(self)
+            if dialog.exec() == QDialog.Accepted:
+                # 激活成功，更新UI
+                self.promax_status_label = QLabel(" 👑 PRO MAX")
+                self.promax_status_label.setStyleSheet("color: #8e44ad; font-weight: bold; font-size: 14px;")
+                # 隐藏升级按钮
+                self.btn_promax_upgrade.setVisible(False)
+                self.is_pro_max = True
+                self.ai_available = is_ai_available()
+                log_info("Pro Max 激活成功")
+                QMessageBox.information(
+                    self,
+                    "激活成功",
+                    "Pro Max 已激活，AI 智能功能已解锁！\n建议重启软件以完全生效。"
+                )
+        except Exception as e:
+            log_exception(e, "Pro Max 激活")
             QMessageBox.critical(self, "错误", f"激活失败：{str(e)}")

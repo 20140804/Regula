@@ -147,6 +147,7 @@ cython_debug/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # ===== Regula 专属 =====
 # 用户设置（每个用户不同，不要提交）
@@ -157,6 +158,9 @@ debug.txt
 
 # Pro 授权文件（你的专属激活凭证，不要公开）
 license.key
+
+# Pro Max 授权文件
+pro_max.key
 
 # 用户自定义规则（本地数据）
 custom_rules.json
@@ -173,12 +177,18 @@ build/
 *.spec
 Regula.ico
 Regula_Pro.exe
+Regula_Setup.exe
+installer/
 
 # ⚠️ 关键：私钥文件（绝对不能提交！）
 generate_keys.py
 generate_activation.py
+generate_promax_keys.py
+generate_promax_activation.py
 *.pem
 private*.pem
+promax_private*.pem
+*.key
 
 # 开发工具（只在你本地用）
 export_icon.py
@@ -193,6 +203,3 @@ report.json
 *.tmp
 *.bak
 *.swp
-
-# 桌面系统文件
-desktop.ini

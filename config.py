@@ -65,3 +65,22 @@ SUPPORTED_LANGUAGES = {
     "ja": "日文",
     "ko": "韩文"
 }
+# config.py (在末尾添加)
+# ===== Pro Max 配置 =====
+PRO_MAX_ACTIVATED = os.path.exists("pro_max.key")
+
+# 功能开关（完整版）
+FEATURES = {
+    "ocr": PRO_ACTIVATED,
+    "batch": True,
+    "heatmap": True,
+    "custom_rules": True,
+    "advanced_pdf": PRO_ACTIVATED,
+    "ai_engine": PRO_ACTIVATED and PRO_MAX_ACTIVATED,  # AI 需要 Pro + Pro Max
+    "multilingual": PRO_ACTIVATED,
+    "cli_mode": PRO_ACTIVATED,
+}
+# config.py (在末尾添加)
+# ===== Pro Max 激活状态 =====
+from utils.promax_license_manager import is_promax_activated
+PRO_MAX_ACTIVATED = is_promax_activated()

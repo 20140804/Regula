@@ -1,12 +1,16 @@
 # models/violation.py
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 @dataclass
 class Violation:
     """单条违规记录"""
-    keyword: str           # 触发的敏感词
-    context: str           # 所在原文片段
-    line_num: int          # 段落/行号
-    severity: str          # "致命", "严重", "一般"
-    position: str          # "标题", "正文"
-    suggestion: str        # 修改建议
+    keyword: str
+    context: str
+    line_num: int
+    severity: str
+    position: str
+    suggestion: str
+    # AI 扩展字段
+    category: Optional[str] = field(default="")  # 违规分类
+    confidence: Optional[float] = field(default=0.0)  # 分类置信度
