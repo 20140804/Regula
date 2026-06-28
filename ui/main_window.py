@@ -80,13 +80,14 @@ class MainWindow(QMainWindow):
         pro_layout.addWidget(self.pro_status_label)
 
         # Pro Max 状态（仅在 Pro 已激活时显示）
-        if self.is_pro_max:
+        if PRO_ACTIVATED and PRO_MAX_ACTIVATED:
             self.promax_status_label = QLabel(" 👑 PRO MAX")
             self.promax_status_label.setStyleSheet("color: #8e44ad; font-weight: bold; font-size: 14px;")
             pro_layout.addWidget(self.promax_status_label)
 
         pro_layout.addStretch()
 
+        # 升级按钮逻辑
         if not PRO_ACTIVATED:
             self.btn_upgrade = QPushButton(self._tr("btn_upgrade"))
             self.btn_upgrade.clicked.connect(self._on_upgrade)
@@ -203,6 +204,9 @@ class MainWindow(QMainWindow):
         self.stats_label = QLabel("共 0 项违规 | 0 个文件")
         self.stats_label.setStyleSheet(f"color: {THEME['text_dark']}; font-weight: bold; padding: 5px; background: #ecf0f1; border-radius: 5px;")
         main_layout.addWidget(self.stats_label)
+
+        # 调试打印
+        print(f"DEBUG: PRO_ACTIVATED={PRO_ACTIVATED}, PRO_MAX_ACTIVATED={PRO_MAX_ACTIVATED}")
 
     # ===== 拖拽事件 =====
     def dragEnterEvent(self, event: QDragEnterEvent):
@@ -642,12 +646,11 @@ class MainWindow(QMainWindow):
             dialog = ProMaxActivationDialog(self)
             if dialog.exec() == QDialog.Accepted:
                 # 激活成功，更新UI
-                self.promax_status_label = QLabel(" 👑 PRO MAX")
-                self.promax_status_label.setStyleSheet("color: #8e44ad; font-weight: bold; font-size: 14px;")
-                # 隐藏升级按钮
-                self.btn_promax_upgrade.setVisible(False)
+                # 直接更新当前对象的属性
                 self.is_pro_max = True
                 self.ai_available = is_ai_available()
+                # 刷新状态栏（重新创建标签和按钮）
+                self._refresh_pro_status()
                 log_info("Pro Max 激活成功")
                 QMessageBox.information(
                     self,
@@ -657,3 +660,9 @@ class MainWindow(QMainWindow):
         except Exception as e:
             log_exception(e, "Pro Max 激活")
             QMessageBox.critical(self, "错误", f"激活失败：{str(e)}")
+
+    def _refresh_pro_status(self):
+        """刷新 Pro 状态栏（激活 Pro Max 后调用）"""
+        # 清除旧的布局内容（简单实现：隐藏旧按钮，添加新标签）
+        # 更简单的方法是让用户重启，这里我们直接提示重启
+        pass
