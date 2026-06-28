@@ -21,9 +21,11 @@ class OCREngine:
         return cls._instance
     
     def __init__(self):
-        # 检查 Pro 授权
+        # 检查 Pro 授权，未授权时静默失败（不抛出异常）
         if not PRO_ACTIVATED:
-            raise RuntimeError("OCR 功能需要 Pro 授权，请激活 Pro 版。")
+            print("[OCR] Pro 未激活，OCR 功能不可用")
+            self._reader = None
+            return
         
         # 自动定位 Tesseract 可执行文件
         tesseract_paths = [
@@ -47,10 +49,18 @@ class OCREngine:
                 print(f"[OCR] Tesseract 已从 PATH 定位: {tess_path}")
             else:
                 print("[OCR] 警告: 未找到 Tesseract，请确保已正确安装。")
+                self._reader = None
+                return
+        
+        self._reader = True  # 标记为可用
     
     def is_available(self) -> bool:
+        """检查 OCR 引擎是否可用"""
+        if not PRO_ACTIVATED:
+            return False
+        if self._reader is None:
+            return False
         try:
-            # 尝试执行 tesseract --version 验证
             import subprocess
             result = subprocess.run(
                 [pytesseract.pytesseract.tesseract_cmd, "--version"],
@@ -67,11 +77,14 @@ class OCREngine:
         返回: (全文, [(文字, 置信度, 坐标), ...])
         注意：Tesseract 不直接返回置信度和坐标，这里置信度固定为 0.9，坐标为 None
         """
-        if not os.path.exists(image_path):
-            raise FileNotFoundError(f"图片文件不存在: {image_path}")
+        if not PRO_ACTIVATED:
+            raise RuntimeError("OCR 功能需要 Pro 授权，请激活 Pro 版。")
         
         if not self.is_available():
             raise RuntimeError("Tesseract 引擎不可用，请检查安装。")
+        
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"图片文件不存在: {image_path}")
         
         # 使用 PIL 打开图片
         image = Image.open(image_path)
@@ -104,8 +117,8 @@ class OCREngine:
 # 全局单例
 try:
     ocr_engine = OCREngine()
-except RuntimeError as e:
-    print(f"[OCR] {e}")
+except Exception as e:
+    print(f"[OCR] 初始化异常: {e}")
     ocr_engine = None
 
 
