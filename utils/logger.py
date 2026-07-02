@@ -1,79 +1,95 @@
 # utils/logger.py
 """
-调试日志记录器 - Pro 版专属
-记录程序运行中的异常、错误和关键操作
+统一日志管理 - 支持按日切割、多级别、结构化输出
 """
 import os
 import sys
-import traceback
+import logging
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from datetime import datetime
 from typing import Optional
-from config import PRO_ACTIVATED
 
-DEBUG_LOG_FILE = "debug.txt"
+from api.config import config
 
 
-def log_exception(e: Exception, context: str = ""):
-    """
-    记录异常信息到 debug.txt
-    仅在 Pro 激活时生效
-    """
-    if not PRO_ACTIVATED:
-        return
+# 日志格式
+LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# 结构化日志格式（JSON）
+JSON_LOG_FORMAT = {
+    "time": "%(asctime)s",
+    "level": "%(levelname)s",
+    "module": "%(name)s",
+    "message": "%(message)s"
+}
+
+
+def setup_logging():
+    """初始化日志系统"""
+    # 确保日志目录存在
+    log_dir = os.path.dirname(config.LOG_FILE_PATH)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
     
-    try:
-        with open(DEBUG_LOG_FILE, 'a', encoding='utf-8') as f:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"\n{'='*60}\n")
-            f.write(f"[{timestamp}] 异常发生\n")
-            if context:
-                f.write(f"上下文: {context}\n")
-            f.write(f"异常类型: {type(e).__name__}\n")
-            f.write(f"异常信息: {str(e)}\n")
-            f.write("堆栈跟踪:\n")
-            f.write(traceback.format_exc())
-            f.write(f"{'='*60}\n")
-    except:
-        # 日志写入失败不影响主程序
-        pass
-
-
-def log_info(message: str):
-    """
-    记录信息日志
-    仅在 Pro 激活时生效
-    """
-    if not PRO_ACTIVATED:
-        return
+    # 获取根日志器
+    logger = logging.getLogger()
+    logger.setLevel(getattr(logging, config.LOG_LEVEL.upper(), logging.INFO))
     
-    try:
-        with open(DEBUG_LOG_FILE, 'a', encoding='utf-8') as f:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"[{timestamp}] INFO: {message}\n")
-    except:
-        pass
-
-
-def log_error(message: str):
-    """
-    记录错误日志（非异常）
-    仅在 Pro 激活时生效
-    """
-    if not PRO_ACTIVATED:
-        return
+    # 移除已有的处理器（避免重复）
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
     
-    try:
-        with open(DEBUG_LOG_FILE, 'a', encoding='utf-8') as f:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"[{timestamp}] ERROR: {message}\n")
-    except:
-        pass
+    # 控制台输出
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG if config.DEBUG else logging.INFO)
+    console_formatter = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+    
+    # 文件输出（按日切割）
+    if config.LOG_FILE_ENABLED:
+        file_handler = TimedRotatingFileHandler(
+            config.LOG_FILE_PATH,
+            when="midnight",
+            interval=1,
+            backupCount=config.LOG_BACKUP_COUNT,
+            encoding="utf-8"
+        )
+        file_handler.setLevel(getattr(logging, config.LOG_LEVEL.upper(), logging.INFO))
+        file_formatter = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
 
 
-def clear_debug_log():
-    """清空调试日志（可选）"""
-    if os.path.exists(DEBUG_LOG_FILE):
-        try:
-            os.remove(DEBUG_LOG_FILE)
-        except:
-            pass
+def get_logger(name: str = "regula"):
+    """获取日志器"""
+    return logging.getLogger(name)
+
+
+def log_info(message: str, **kwargs):
+    """记录 INFO 日志"""
+    get_logger().info(message, extra=kwargs)
+
+
+def log_warning(message: str, **kwargs):
+    """记录 WARNING 日志"""
+    get_logger().warning(message, extra=kwargs)
+
+
+def log_error(message: str, **kwargs):
+    """记录 ERROR 日志"""
+    get_logger().error(message, extra=kwargs)
+
+
+def log_debug(message: str, **kwargs):
+    """记录 DEBUG 日志"""
+    get_logger().debug(message, extra=kwargs)
+
+
+# 初始化日志
+try:
+    setup_logging()
+except Exception:
+    # 如果日志初始化失败，确保不会崩溃
+    print("⚠️ 日志初始化失败，使用控制台日志")
